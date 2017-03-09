@@ -26,6 +26,16 @@ const createWindow = () => {
     // when you should delete the corresponding element.
     win = null
   })
+
+  win.webContents.on('did-finish-load', () => {
+    setTimeout(() => {
+      win.webContents.executeJavaScript('document.querySelector(".org-top-card-module__followers-count").innerText', text => {
+        let followers = parseInt(text.match(/\d/g).join(''))
+        console.log(followers)
+        // do what you want with followers
+      })
+    }, 2000)
+  })
 }
 
 // This method will be called when Electron has finished
