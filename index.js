@@ -16,8 +16,8 @@ const createWindow = () => {
   win = new BrowserWindow({width: 800, height: 600})
 
   // load a remote url, in this case the LinkedIn profile for my current employer, Net Natives
-  win.loadURL('https://www.linkedin.com/company/net-natives/') // old style page
-  // win.loadURL('https://www.linkedin.com/company-beta/305751/') // new style page
+  // win.loadURL('https://www.linkedin.com/company/net-natives/') // old style page
+  win.loadURL('https://www.linkedin.com/company-beta/305751/') // new style page
 
    // Emitted when the window is closed.
   win.on('closed', () => {
@@ -28,13 +28,27 @@ const createWindow = () => {
   })
 
   win.webContents.on('did-finish-load', () => {
-    setTimeout(() => {
-      win.webContents.executeJavaScript('document.querySelector(".followers-count").innerText', text => {
-        let followers = parseInt(text.match(/\d/g).join(''))
-        console.log(followers)
-        // do what you want with followers
-      })
-    }, 2000)
+    win.webContents.executeJavaScript('location.pathname', pathname => {
+      console.log(`pathname: ${pathname}`)
+
+      let querySelector = ''
+
+      if (pathname.indexOf('/school/') !== -1 || pathname.indexOf('/company-beta/') !== -1) {
+        querySelector = '.org-top-card-module__followers-count'
+      } else if (pathname.indexOf('/biz/') !== -1 || pathname.indexOf('/company/') !== -1) {
+        querySelector = '.followers-count'
+      }
+
+      if (querySelector) {
+        setTimeout(() => {
+          win.webContents.executeJavaScript(`document.querySelector('${querySelector}').innerText`, text => {
+            let followers = parseInt(text.match(/\d/g).join(''))
+            console.log(followers)
+            // do what you want with followers
+          })
+        }, 2000)
+      }
+    })
   })
 }
 
