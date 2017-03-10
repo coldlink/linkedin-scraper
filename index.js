@@ -2,6 +2,8 @@
 
 // load electron modules
 const {app, BrowserWindow} = require('electron')
+const request = require('request')
+const jsdom = require('jsdom')
 
 // adds debug features like hotkeys for triggering dev tools and reload
 require('electron-debug')()
@@ -27,21 +29,29 @@ const createWindow = () => {
     win = null
   })
 
+  // on browser load finish
   win.webContents.on('did-finish-load', () => {
+    // execute js to get pathname
     win.webContents.executeJavaScript('location.pathname', pathname => {
       console.log(`pathname: ${pathname}`)
 
+      // holder for query selector
       let querySelector = ''
 
+      // check pathname
       if (pathname.indexOf('/school/') !== -1 || pathname.indexOf('/company-beta/') !== -1) {
+        // new style page
         querySelector = '.org-top-card-module__followers-count'
       } else if (pathname.indexOf('/biz/') !== -1 || pathname.indexOf('/company/') !== -1) {
+        // old style page
         querySelector = '.followers-count'
       }
 
+      // attempt to get company id from pathname
       let companyId = parseInt(pathname.match(/\d/g) ? pathname.match(/\d/g).join('') : NaN)
       console.log(`get company id: ${companyId}`)
 
+      // use query selector to get followers
       if (querySelector) {
         setTimeout(() => {
           win.webContents.executeJavaScript(`document.querySelector('${querySelector}').innerText`, text => {
@@ -52,9 +62,10 @@ const createWindow = () => {
         }, 2000)
       }
 
+      // no company id, so get it from webpage
       if (!companyId) {
         setTimeout(() => {
-          win.webContents.executeJavaScript(`parseInt(document.body.innerHTML.match(/companyId=\\d+/g)[0].match(/\\d+/g)[0])`, id => {
+          win.webContents.executeJavaScript('parseInt(document.body.innerHTML.match(/companyId=\\d+/g)[0].match(/\\d+/g)[0])', id => {
             console.log(`company id: ${id}`)
             companyId = id
           })
