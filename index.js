@@ -16,8 +16,8 @@ const createWindow = () => {
   win = new BrowserWindow({width: 800, height: 600})
 
   // load a remote url, in this case the LinkedIn profile for my current employer, Net Natives
-  // win.loadURL('https://www.linkedin.com/company/net-natives/') // old style page
-  win.loadURL('https://www.linkedin.com/company-beta/305751/') // new style page
+  win.loadURL('https://www.linkedin.com/company/net-natives/') // old style page
+  // win.loadURL('https://www.linkedin.com/company-beta/305751/') // new style page
 
    // Emitted when the window is closed.
   win.on('closed', () => {
@@ -39,12 +39,24 @@ const createWindow = () => {
         querySelector = '.followers-count'
       }
 
+      let companyId = parseInt(pathname.match(/\d/g) ? pathname.match(/\d/g).join('') : NaN)
+      console.log(`get company id: ${companyId}`)
+
       if (querySelector) {
         setTimeout(() => {
           win.webContents.executeJavaScript(`document.querySelector('${querySelector}').innerText`, text => {
             let followers = parseInt(text.match(/\d/g).join(''))
             console.log(followers)
             // do what you want with followers
+          })
+        }, 2000)
+      }
+
+      if (!companyId) {
+        setTimeout(() => {
+          win.webContents.executeJavaScript(`parseInt(document.body.innerHTML.match(/companyId=\\d+/g)[0].match(/\\d+/g)[0])`, id => {
+            console.log(`company id: ${id}`)
+            companyId = id
           })
         }, 2000)
       }
