@@ -1,15 +1,23 @@
 'use strict'
 
+// get url from parameter
+const url = process.argv[2] || 'OR HARDCODE URL HERE'
+
 // load electron modules
 const { app, BrowserWindow } = require('electron')
 const jsdom = require('jsdom')
 const request = require('request')
+const _ = require('lodash')
 
 // adds debug features like hotkeys for triggering dev tools and reload
 require('electron-debug')()
 
+const startScrape = (url) => {
+  return Promise.resolve({url, result: {}})
+}
+
 // function to create a new window from a url and return the window to the caller
-const createWindow = url => {
+const createWindow = obj => new Promise((resolve, reject) => {
   let win
 
   // create the browser window, set width/height to whatever you want \^_^/
@@ -18,7 +26,7 @@ const createWindow = url => {
   // load a remote url, in this case the LinkedIn profile for my current employer, Net Natives
   // win.loadURL('https://www.linkedin.com/company/net-natives/') // old style page
   // win.loadURL('https://www.linkedin.com/company-beta/305751/') // new style page
-  win.loadURL(url)
+  win.loadURL(obj.url)
 
   // Emitted when the window is closed.
   win.on('closed', () => {
@@ -28,64 +36,63 @@ const createWindow = url => {
     win = null
   })
 
-  return Promise.resolve(win)
-}
+  return resolve(_.merge(obj, {win}))
+})
 
-const getFollowers = win => {
+const getPathname = obj => new Promise((resolve, reject) => {
   // on browser load finish
-  win.webContents.on('did-finish-load', () => {
+  obj.win.webContents.on('did-finish-load', () => {
     // execute js to get pathname
-    win.webContents.executeJavaScript('location.pathname', pathname => {
-      console.log(`Pathname: ${pathname}`)
-
-      // holder for query selector
-      let querySelector = ''
-
-      // check pathname
-      if (pathname.indexOf('/school/') !== -1 || pathname.indexOf('/company-beta/') !== -1) {
-        // new style page
-        querySelector = '.org-top-card-module__followers-count'
-      } else if (pathname.indexOf('/biz/') !== -1 || pathname.indexOf('/company/') !== -1) {
-        // old style page
-        querySelector = '.followers-count'
-      }
-
-      // use query selector to get followers
-      if (querySelector) {
-        setTimeout(() => {
-          win.webContents.executeJavaScript(`document.querySelector('${querySelector}').innerText`, text => {
-            let followers = parseInt(text.match(/\d/g).join(''))
-            console.log(`Followers: ${followers}`)
-            // do what you want with followers here
-            return Promise.resolve({win, pathname})
-          })
-        }, 2000)
-      }
+    obj.win.webContents.executeJavaScript('location.pathname', pathname => {
+      return resolve(_.merge({pathname}, obj))
     })
   })
-}
+})
 
-const getCompanyId = (win, pathname) => {
+const getFollowers = obj => new Promise((resolve, reject) => {
+  // holder for query selector
+  let querySelector = ''
+
+  // check pathname
+  if (obj.pathname.indexOf('/school/') !== -1 || obj.pathname.indexOf('/company-beta/') !== -1) {
+    // new style page
+    querySelector = '.org-top-card-module__followers-count'
+  } else if (obj.pathname.indexOf('/biz/') !== -1 || obj.pathname.indexOf('/company/') !== -1) {
+    // old style page
+    querySelector = '.followers-count'
+  }
+
+  // use query selector to get followers
+  if (querySelector) {
+    setTimeout(() => {
+      obj.win.webContents.executeJavaScript(`document.querySelector('${querySelector}').innerText`, text => {
+        // add followers to results
+        obj.result.followers = parseInt(text.match(/\d/g).join(''))
+        return resolve(obj)
+      })
+    }, 2000)
+  }
+})
+
+const getCompanyId = obj => new Promise((resolve, reject) => {
   // attempt to get company id from pathname
-  let companyId = parseInt(pathname.match(/\d/g) ? pathname.match(/\d/g).join('') : NaN)
-  console.log(`get company id: ${companyId}`)
+  let companyId = parseInt(obj.pathname.match(/\d/g) ? obj.pathname.match(/\d/g).join('') : NaN)
 
   // no company id, so get it from webpage
   if (!companyId) {
     setTimeout(() => {
-      win.webContents.executeJavaScript('parseInt(document.body.innerHTML.match(/companyId=\\d+/g)[0].match(/\\d+/g)[0])', id => {
-        console.log(`company id: ${id}`)
+      obj.win.webContents.executeJavaScript('parseInt(document.body.innerHTML.match(/companyId=\\d+/g)[0].match(/\\d+/g)[0])', id => {
         if (id) {
-          return Promise.resolve(win, id)
+          return resolve(_.merge(obj, {companyId: id}))
         } else {
-          return Promise.reject(new Error('No Company Id Found.'))
+          return reject(new Error('No Company Id Found.'))
         }
       })
     }, 2000)
   } else {
-    return Promise.resolve(win, companyId)
+    return resolve(_.merge(obj, {companyId}))
   }
-}
+})
 
 // const getCompanyUpdates = (id, index = 0) => {
 //   win.loadURL('https://www.linkedin.com/biz/305751/single-update?activityUrn=urn%3Ali%3Aactivity%3A6243048981178523648')
@@ -108,29 +115,31 @@ const getCompanyId = (win, pathname) => {
 //   })
 // }
 
-const startScrape = (url) => {
-  return Promise.resolve(url)
-}
+const closeWindow = obj => new Promise((resolve, reject) => {
+  obj.win.close()
+  resolve(obj)
+})
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', () => {
-  let url = 'https://www.linkedin.com/company/net-natives/'
-
   startScrape(url)
-    // .then(createWindow)
-    // .then(getFollowerAndCompanyId)
-    .then((result) => {
-
+    .then(createWindow)
+    .then(getPathname)
+    .then(getFollowers)
+    .then(getCompanyId)
+    .then(obj => {
+      console.log(`Pathname: ${obj.pathname}`)
+      console.log(`CompanyId: ${obj.companyId}`)
+      console.log(`Followers: ${obj.result.followers}`)
+      return Promise.resolve(obj)
     })
+    .then(closeWindow)
+    .catch(err => console.log(err))
 })
 
 // Quit when all windows are closed.
 app.on('window-all-closed', () => {
-  // On macOS it is common for applications and their menu bar
-  // to stay active until the user quits explicitly with Cmd + Q
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  app.quit()
 })
