@@ -125,7 +125,6 @@ const getCompanyUpdates = (obj) => new Promise((resolve, reject) => {
               obj.win.webContents.executeJavaScript('document.body.innerText', body => {
                 try {
                   let post = JSON.parse(body)
-                  console.log(post)
                   obj.result.posts.push({
                     createdDate: post.updates[0].createdDate,
                     // commentary: post.updates[0].commentary[0].plain.text,
@@ -148,7 +147,6 @@ const getCompanyUpdates = (obj) => new Promise((resolve, reject) => {
           })
 
           prom.then(post => {
-            console.log(post)
             return cb()
           }).catch(err => {
             console.log(err)
@@ -166,7 +164,6 @@ const getCompanyUpdates = (obj) => new Promise((resolve, reject) => {
   }
 
   const getPosts = () => {
-    console.log(queue)
     async.series(queue, () => resolve(obj))
   }
 
