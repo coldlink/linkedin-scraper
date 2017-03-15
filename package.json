@@ -8,6 +8,7 @@
     "start": "./node_modules/.bin/electron ."
   },
   "dependencies": {
+    "async": "^2.1.5",
     "electron": "^1.6.2",
     "electron-debug": "^1.1.0",
     "jsdom": "^9.11.0",

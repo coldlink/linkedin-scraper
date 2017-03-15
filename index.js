@@ -8,6 +8,7 @@ const { app, BrowserWindow } = require('electron')
 const jsdom = require('jsdom')
 const request = require('request')
 const _ = require('lodash')
+const async = require('async')
 
 // adds debug features like hotkeys for triggering dev tools and reload
 require('electron-debug')()
@@ -94,43 +95,82 @@ const getCompanyId = obj => new Promise((resolve, reject) => {
   }
 })
 
-const getCompanyUpdates = (obj, index = 0) => new Promise((resolve, reject) => {
-  let updatesUrl = `https://www.linkedin.com/biz/${obj.companyId}/feed?start=${index}`
+const getCompanyUpdates = (obj) => new Promise((resolve, reject) => {
+  let startIndex = 0
+  let endIndex = 20 // set to null if you want to look at all posts
+  let queue = []
 
-  jsdom.env(updatesUrl, (err, window) => {
-    if (err) { return reject(err) }
+  const buildFeed = index => {
+    let updatesUrl = `https://www.linkedin.com/biz/${obj.companyId}/feed?start=${index}`
 
-    // posts holder
-    obj.result.posts = []
+    jsdom.env(updatesUrl, (err, window) => {
+      if (err) { return reject(err) }
 
-    let feedItems = window.document.getElementsByClassName('feed-item')
+      if (!window.document.body.innerHTML) {
+        return getPosts()
+      }
 
-    obj.win.loadURL(`https://www.linkedin.com${feedItems[0].attributes[_.findIndex(feedItems[0].attributes, {'name': 'data-li-single-update-url'})].value}`)
-    // on browser load finish
-    obj.win.webContents.on('did-finish-load', () => {
-      // execute js to get body
-      obj.win.webContents.executeJavaScript('document.body.innerText', body => {
-        try {
-          let post = JSON.parse(body)
+        // posts holder
+      obj.result.posts = []
 
-          obj.result.posts.push({
-            createdDate: post.updates[0].createdDate,
-            commentary: post.updates[0].commentary[0].plain.text,
-            description: post.updates[0].content.article.description,
-            title: post.updates[0].content.article.title,
-            url: post.updates[0].content.article.url,
-            likeCount: post.updates[0].action[0].like.count,
-            commentCount: post.updates[0].action[1].comment.count
+      let feedItems = window.document.getElementsByClassName('feed-item')
+
+      _.each(feedItems, feedItem => {
+        queue.push(cb => {
+          let prom = new Promise((resolve, reject) => {
+            obj.win.loadURL(`https://www.linkedin.com${feedItem.attributes[_.findIndex(feedItem.attributes, {'name': 'data-li-single-update-url'})].value}`)
+            // on browser load finish
+            obj.win.webContents.on('did-finish-load', () => {
+              // execute js to get body
+              obj.win.webContents.executeJavaScript('document.body.innerText', body => {
+                try {
+                  let post = JSON.parse(body)
+                  console.log(post)
+                  obj.result.posts.push({
+                    createdDate: post.updates[0].createdDate,
+                    // commentary: post.updates[0].commentary[0].plain.text,
+                    // description: post.updates[0].content.article.description,
+                    // title: post.updates[0].content.article.title,
+                    // url: post.updates[0].content.article.url,
+                    likeCount: post.updates[0].action[0].like.count,
+                    commentCount: post.updates[0].action[1].comment.count
+                  })
+
+                  if (post) {
+                    return resolve(post)
+                  }
+                } catch (err) {
+                  // catch if anything goes wrong
+                  return reject(err)
+                }
+              })
+            })
           })
 
-          return resolve(obj)
-        } catch (err) {
-          // catch if anything goes wrong
-          return reject(err)
-        }
+          prom.then(post => {
+            console.log(post)
+            return cb()
+          }).catch(err => {
+            console.log(err)
+            return cb()
+          })
+        })
       })
+
+      if (!endIndex || (index < endIndex)) {
+        return buildFeed(index + 10)
+      } else {
+        return getPosts()
+      }
     })
-  })
+  }
+
+  const getPosts = () => {
+    console.log(queue)
+    async.series(queue, () => resolve(obj))
+  }
+
+  buildFeed(startIndex)
 })
 
 const closeWindow = obj => new Promise((resolve, reject) => {
