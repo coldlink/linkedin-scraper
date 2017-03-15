@@ -94,26 +94,44 @@ const getCompanyId = obj => new Promise((resolve, reject) => {
   }
 })
 
-// const getCompanyUpdates = (id, index = 0) => {
-//   win.loadURL('https://www.linkedin.com/biz/305751/single-update?activityUrn=urn%3Ali%3Aactivity%3A6243048981178523648')
-//   // on browser load finish
-//   win.webContents.on('did-finish-load', () => {
-//     // execute js to get pathname
-//     win.webContents.executeJavaScript('document.body.innerText', result => {
-//       console.log(result)
-//     })
-//   })
-//   let url = `https://www.linkedin.com/biz/${id}/feed?start=${index}`
-//   jsdom.env(url, (err, window) => {
-//     if (err) { throw err }
-//     let feedItems = window.document.getElementsByClassName('feed-item')
-//     win.webContents.executeJavaScript('parseInt(document.body.innerHTML.match(/companyId=\\d+/g)[0].match(/\\d+/g)[0])', id => {
-//       console.log(`company id: ${id}`)
-//       companyId = id
-//       return getCompanyUpdates(win, companyId)
-//     })
-//   })
-// }
+const getCompanyUpdates = (obj, index = 0) => new Promise((resolve, reject) => {
+  let updatesUrl = `https://www.linkedin.com/biz/${obj.companyId}/feed?start=${index}`
+
+  jsdom.env(updatesUrl, (err, window) => {
+    if (err) { return reject(err) }
+
+    // posts holder
+    obj.result.posts = []
+
+    let feedItems = window.document.getElementsByClassName('feed-item')
+
+    obj.win.loadURL(`https://www.linkedin.com${feedItems[0].attributes[_.findIndex(feedItems[0].attributes, {'name': 'data-li-single-update-url'})].value}`)
+    // on browser load finish
+    obj.win.webContents.on('did-finish-load', () => {
+      // execute js to get body
+      obj.win.webContents.executeJavaScript('document.body.innerText', body => {
+        try {
+          let post = JSON.parse(body)
+
+          obj.result.posts.push({
+            createdDate: post.updates[0].createdDate,
+            commentary: post.updates[0].commentary[0].plain.text,
+            description: post.updates[0].content.article.description,
+            title: post.updates[0].content.article.title,
+            url: post.updates[0].content.article.url,
+            likeCount: post.updates[0].action[0].like.count,
+            commentCount: post.updates[0].action[1].comment.count
+          })
+
+          return resolve(obj)
+        } catch (err) {
+          // catch if anything goes wrong
+          return reject(err)
+        }
+      })
+    })
+  })
+})
 
 const closeWindow = obj => new Promise((resolve, reject) => {
   obj.win.close()
@@ -129,10 +147,12 @@ app.on('ready', () => {
     .then(getPathname)
     .then(getFollowers)
     .then(getCompanyId)
+    .then(getCompanyUpdates)
     .then(obj => {
       console.log(`Pathname: ${obj.pathname}`)
       console.log(`CompanyId: ${obj.companyId}`)
       console.log(`Followers: ${obj.result.followers}`)
+      console.log(`Posts: ${JSON.stringify(obj.result.posts)}`)
       return Promise.resolve(obj)
     })
     .then(closeWindow)
