@@ -5,6 +5,8 @@
 ### Quick Start
 
 ```sh
+$ git clone https://github.com/coldlink/linkedin-scraper.git
+$ cd linkedin-scraper
 $ npm install
 $ npm start "https://www.linkedin.com/company/305751/" # or use any company/school profile
 ```
