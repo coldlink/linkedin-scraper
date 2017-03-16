@@ -42,7 +42,7 @@ const createWindow = obj => new Promise((resolve, reject) => {
 
 const getPathname = obj => new Promise((resolve, reject) => {
   // on browser load finish
-  obj.win.webContents.on('did-finish-load', () => {
+  obj.win.webContents.once('did-finish-load', () => {
     // execute js to get pathname
     obj.win.webContents.executeJavaScript('location.pathname', pathname => {
       return resolve(_.merge({pathname}, obj))
@@ -97,7 +97,7 @@ const getCompanyId = obj => new Promise((resolve, reject) => {
 
 const getCompanyUpdates = (obj) => new Promise((resolve, reject) => {
   let startIndex = 0
-  let endIndex = 20 // set to null if you want to look at all posts
+  let endIndex = 19 // set to null if you want to look at all posts
   let queue = []
 
   const buildFeed = index => {
@@ -120,7 +120,7 @@ const getCompanyUpdates = (obj) => new Promise((resolve, reject) => {
           let prom = new Promise((resolve, reject) => {
             obj.win.loadURL(`https://www.linkedin.com${feedItem.attributes[_.findIndex(feedItem.attributes, {'name': 'data-li-single-update-url'})].value}`)
             // on browser load finish
-            obj.win.webContents.on('did-finish-load', () => {
+            obj.win.webContents.once('did-finish-load', () => {
               // execute js to get body
               obj.win.webContents.executeJavaScript('document.body.innerText', body => {
                 try {
@@ -155,7 +155,8 @@ const getCompanyUpdates = (obj) => new Promise((resolve, reject) => {
         })
       })
 
-      if (!endIndex || (index < endIndex)) {
+      // use endIndex - 10, as we want the start index to be 10 less than the index we want to end on
+      if (!endIndex || (index < endIndex - 10)) {
         return buildFeed(index + 10)
       } else {
         return getPosts()
@@ -189,6 +190,7 @@ app.on('ready', () => {
       console.log(`Pathname: ${obj.pathname}`)
       console.log(`CompanyId: ${obj.companyId}`)
       console.log(`Followers: ${obj.result.followers}`)
+      console.log(`Posts Length: ${obj.result.posts.length}`)
       console.log(`Posts: ${JSON.stringify(obj.result.posts)}`)
       return Promise.resolve(obj)
     })
